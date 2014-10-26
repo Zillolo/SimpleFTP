@@ -18,7 +18,15 @@ public class Server {
 	 */
 	public static final int MAX_THREADS = 5;
 	
+	/**
+	 * The Servers greeting message.
+	 */
 	public static final String GREETING_MSG = "SimpleFTP ready. Enjoy.";
+	
+	/**
+	 * The Servers default working directory.
+	 */
+	public static final String DEFAULT_DIR = "/srv/ftp/pub";
 
 	private ServerSocket server;
 

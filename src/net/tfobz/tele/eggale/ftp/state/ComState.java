@@ -1,4 +1,4 @@
-package net.tfobz.tele.eggale.ftp.type;
+package net.tfobz.tele.eggale.ftp.state;
 
 public enum ComState {
 	GREETING,
