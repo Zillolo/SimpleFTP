@@ -2,7 +2,7 @@ package net.tfobz.tele.eggale.ftp.state;
 
 public enum Type {
 	ASCII,
-	EBCDIC,
+//	EBCDIC, Not implemented.
 	IMAGE,
-	LOCAL
+//	LOCAL	Not implemented.
 }

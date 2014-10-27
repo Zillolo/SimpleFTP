@@ -9,6 +9,6 @@ package net.tfobz.tele.eggale.ftp.state;
  */
 public enum Structure {
 	FILE,
-	RECORD,
-	PAGE
+//	RECORD, 	Not implemented.
+//	PAGE		Not implemented.
 }

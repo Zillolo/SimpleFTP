@@ -11,7 +11,7 @@ public class Server {
 	/**
 	 * The default control port of the Server.
 	 */
-	public static final int CPORT = 1555;
+	public static final int CPORT = 1777;
 
 	/**
 	 * Maximum amount of concurrently active threads.
@@ -40,6 +40,7 @@ public class Server {
 			threadPool = new ArrayList<Thread>();
 		} catch (IOException e) {
 			System.err.println("[ERROR] Couldn't create Server Socket.");
+			e.printStackTrace();
 		}
 	}
 
