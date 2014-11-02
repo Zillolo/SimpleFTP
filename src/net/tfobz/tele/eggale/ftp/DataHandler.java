@@ -4,13 +4,13 @@
 package net.tfobz.tele.eggale.ftp;
 
 import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -82,12 +82,28 @@ public class DataHandler {
         }
     }
 
+    public boolean isOpen() {
+        boolean ret = false;
+
+        if (isPassiveMode == true) {
+            if (passiveConnection != null) {
+                ret = true;
+            }
+        } else {
+            if (activeConnection != null) {
+                ret = true;
+            }
+        }
+
+        return ret;
+    }
+
     public void store(File file) throws IOException {
         Socket client = null;
         if (file != null) {
-            client = getClient();
+            client = selectClient();
             if (client != null) {
-                comHandler.reply(150);
+                comHandler.reply(Reply.FILE_ACTION_OK);
 
                 FileOutputStream output = new FileOutputStream(file);
                 switch (mode) {
@@ -114,14 +130,6 @@ public class DataHandler {
                         break;
                     }
                     case IMAGE: {
-                        // try {
-                        // BufferedImage image = ImageIO.read(client
-                        // .getInputStream());
-                        // ImageIO.write(image, "JPG", output);
-                        // } catch (IOException e) {
-                        // comHandler.reply(451);
-                        // }
-
                         BufferedInputStream input = new BufferedInputStream(
                                         client.getInputStream());
 
@@ -138,7 +146,7 @@ public class DataHandler {
 
                 }
 
-                comHandler.reply(226);
+                comHandler.reply(Reply.FILE_ACTION_COMPLETE);
                 output.close();
                 client.close();
             }
@@ -148,15 +156,15 @@ public class DataHandler {
     public void retrieve(File file) throws IOException {
         Socket client = null;
         if (file != null) {
-            client = getClient();
+            client = selectClient();
             if (client != null) {
-                comHandler.reply(150);
+                comHandler.reply(Reply.FILE_ACTION_OK);
 
                 FileInputStream input = new FileInputStream(file);
                 switch (mode) {
                 case STREAM:
                     switch (type) {
-                    case ASCII:
+                    case ASCII: {
                         PrintWriter output = new PrintWriter(
                                         client.getOutputStream());
 
@@ -167,23 +175,34 @@ public class DataHandler {
                         }
                         output.close();
                         break;
-                    case IMAGE:
-                        OutputStreamWriter out = new OutputStreamWriter(
-                                        client.getOutputStream(), "UTF-8");
-                        byte[] b = new byte[(int) file.length()];
+                    }
+                    case IMAGE: {
+                        // OutputStreamWriter out = new OutputStreamWriter(
+                        // client.getOutputStream(), "UTF-8");
+                        // byte[] b = new byte[(int) file.length()];
+                        //
+                        // input.read(b);
+                        // for (int i = 0; i < file.length(); i++) {
+                        // System.out.println((char) b[i]);
+                        // out.write(b[i]);
+                        // }
+                        // out.close();
+                        BufferedOutputStream output = new BufferedOutputStream(
+                                        client.getOutputStream());
 
-                        input.read(b);
-                        for (int i = 0; i < file.length(); i++) {
-                            System.out.println((char) b[i]);
-                            out.write(b[i]);
+                        int data = input.read();
+                        while (data != -1) {
+                            output.write(data);
+                            data = input.read();
                         }
-                        out.close();
+                        output.close();
                         break;
+                    }
                     }
                     break;
                 }
 
-                comHandler.reply(226);
+                comHandler.reply(Reply.FILE_ACTION_COMPLETE);
                 input.close();
                 client.close();
             }
@@ -193,16 +212,16 @@ public class DataHandler {
     public void listFiles(File folder) throws IOException {
         Socket client = null;
         if (folder != null) {
-            client = getClient();
+            client = selectClient();
             if (client != null) {
                 PrintWriter output = new PrintWriter(client.getOutputStream());
 
-                comHandler.reply(150);
+                comHandler.reply(Reply.FILE_ACTION_OK);
                 for (File file : folder.listFiles()) {
                     output.print(file.getName() + "\r\n");
                 }
                 output.close();
-                comHandler.reply(226);
+                comHandler.reply(Reply.FILE_ACTION_COMPLETE);
                 client.close();
             }
         }
@@ -212,41 +231,25 @@ public class DataHandler {
         if (folder != null) {
             if (folder.exists() == true && folder.isDirectory() == true) {
                 workingDirectory = folder.getAbsolutePath();
-                comHandler.reply(200);
+                comHandler.reply(Reply.COMMAND_OK);
             } else {
-                comHandler.reply(550);
+                comHandler.reply(Reply.FILE_NOT_FOUND);
             }
         }
-    }
-
-    public boolean isOpen() {
-        boolean ret = false;
-
-        if (isPassiveMode == true) {
-            if (passiveConnection != null) {
-                ret = true;
-            }
-        } else {
-            if (activeConnection != null) {
-                ret = true;
-            }
-        }
-
-        return ret;
     }
 
     public void setPassiveMode(boolean flag) {
         isPassiveMode = flag;
 
         if (flag == true) {
-            comHandler.reply(227);
+            comHandler.reply(Reply.PASSIVE_MODE);
         } else {
             // CAUTION: Is this the correct reply?
-            comHandler.reply(200);
+            comHandler.reply(Reply.COMMAND_OK);
         }
     }
 
-    private Socket getClient() throws IOException {
+    private Socket selectClient() throws IOException {
         Socket socket = null;
 
         if (isOpen() == true) {

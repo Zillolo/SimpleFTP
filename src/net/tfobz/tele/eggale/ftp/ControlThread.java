@@ -7,15 +7,9 @@ import java.io.PrintWriter;
 import java.net.Socket;
 
 import net.tfobz.tele.eggale.ftp.state.ComState;
-import net.tfobz.tele.eggale.ftp.state.Format;
 import net.tfobz.tele.eggale.ftp.state.Mode;
 import net.tfobz.tele.eggale.ftp.state.Structure;
 import net.tfobz.tele.eggale.ftp.state.Type;
-import sun.net.ConnectionResetException;
-
-/**
- * 
- */
 
 /**
  * @author 10eggale
@@ -50,16 +44,6 @@ public class ControlThread extends Thread {
 
     private DataHandler dataHandler;
 
-    private Structure structure = Structure.FILE;
-
-    private Mode mode = Mode.STREAM;
-
-    private Type type = Type.ASCII;
-
-    private Format format = Format.NONPRINT;
-
-    private String workingDirectory = Server.DEFAULT_DIR;
-
     private ProtocolInterpreter comHandler;
 
     /**
@@ -71,8 +55,7 @@ public class ControlThread extends Thread {
         this.controlConnection = client;
 
         try {
-            comHandler = new ProtocolInterpreter(
-                            controlConnection.getInputStream(),
+            comHandler = new FTPInterpreter(controlConnection.getInputStream(),
                             controlConnection.getOutputStream());
             dataHandler = new DataHandler(comHandler);
         } catch (IOException e) {
@@ -89,7 +72,7 @@ public class ControlThread extends Thread {
                 Command command = null;
                 switch (state) {
                 case GREETING:
-                    comHandler.reply(220);
+                    comHandler.reply(Reply.GREETING);
                     state = ComState.AUTHENTICATION;
                     break;
 
@@ -103,10 +86,10 @@ public class ControlThread extends Thread {
                         if (username.equals("Anonymous")
                                         || username.equals("anonymous")) {
                             userOk = true;
-                            comHandler.reply(331);
+                            comHandler.reply(Reply.USER_OK_PASSWORD_NEEDED);
                         } else {
                             userOk = false;
-                            comHandler.reply(530);
+                            comHandler.reply(Reply.LOGIN_INCORRECT);
                         }
                         break;
                     case PASS:
@@ -116,17 +99,17 @@ public class ControlThread extends Thread {
                             // TODO: Replace with actual check.
                             if (password.equals("")) {
                                 state = ComState.ARBITRARY;
-                                comHandler.reply(230);
+                                comHandler.reply(Reply.USER_LOGGED_IN);
                             } else {
                                 userOk = false;
-                                comHandler.reply(530);
+                                comHandler.reply(Reply.BAD_SEQUENCE);
                             }
                         }
                         break;
                     case ERROR:
                     default:
                         userOk = false;
-                        comHandler.reply(503);
+                        comHandler.reply(Reply.BAD_SEQUENCE);
                         break;
                     }
                     break;
@@ -174,7 +157,7 @@ public class ControlThread extends Thread {
                         break;
                     case ERROR:
                     default:
-                        comHandler.reply(500);
+                        comHandler.reply(Reply.ILLEGAL_COMMAND);
                         break;
                     }
                     break;
@@ -190,7 +173,7 @@ public class ControlThread extends Thread {
     }
 
     private void doNoop() {
-        comHandler.reply(200);
+        comHandler.reply(Reply.COMMAND_OK);
     }
 
     private void setPort(String argument) {
@@ -210,18 +193,18 @@ public class ControlThread extends Thread {
                                     + Integer.parseInt(arguments[5]);
                     if (port > 0 && port < 65535) {
                         dataPort = port;
-                        comHandler.reply(200);
+                        comHandler.reply(Reply.COMMAND_OK);
                     } else {
-                        comHandler.reply(500);
+                        comHandler.reply(Reply.ILLEGAL_COMMAND);
                     }
                 } catch (NumberFormatException e) {
-                    comHandler.reply(501);
+                    comHandler.reply(Reply.SYNTAX_ERROR);
                 }
             } else {
-                comHandler.reply(500);
+                comHandler.reply(Reply.ILLEGAL_COMMAND);
             }
         } else {
-            comHandler.reply(501);
+            comHandler.reply(Reply.SYNTAX_ERROR);
         }
     }
 
@@ -233,10 +216,10 @@ public class ControlThread extends Thread {
         switch (argument) {
         case "F":
             // dataHandler.setStructure(Structure.FILE);
-            comHandler.reply(200);
+            comHandler.reply(Reply.COMMAND_OK);
             break;
         default:
-            comHandler.reply(504);
+            comHandler.reply(Reply.COMMAND_WRONG_PARAM);
         }
     }
 
@@ -244,10 +227,10 @@ public class ControlThread extends Thread {
         switch (argument) {
         case "S":
             dataHandler.setMode(Mode.STREAM);
-            comHandler.reply(200);
+            comHandler.reply(Reply.COMMAND_OK);
             break;
         default:
-            comHandler.reply(504);
+            comHandler.reply(Reply.COMMAND_WRONG_PARAM);
         }
     }
 
@@ -255,25 +238,23 @@ public class ControlThread extends Thread {
         switch (argument.charAt(0)) {
         case 'A':
             dataHandler.setType(Type.ASCII);
-
-            if (argument.length() > 2) {
-                switch (argument.charAt(2)) {
-                case 'N':
-                    format = Format.NONPRINT;
-                    break;
-                default:
-                    format = Format.NONPRINT;
-                }
-            }
-
-            comHandler.reply(200);
+            // if (argument.length() > 2) {
+            // switch (argument.charAt(2)) {
+            // case 'N':
+            // format = Format.NONPRINT;
+            // break;
+            // default:
+            // format = Format.NONPRINT;
+            // }
+            // }
+            comHandler.reply(Reply.COMMAND_OK);
             break;
         case 'I':
             dataHandler.setType(Type.IMAGE);
-            comHandler.reply(200);
+            comHandler.reply(Reply.COMMAND_OK);
             break;
         default:
-            comHandler.reply(504);
+            comHandler.reply(Reply.COMMAND_WRONG_PARAM);
         }
     }
 
@@ -309,7 +290,7 @@ public class ControlThread extends Thread {
             dataHandler.listFiles(file);
             dataHandler.closeConnection();
         } else {
-            comHandler.reply(550);
+            comHandler.reply(Reply.FILE_NOT_FOUND);
         }
     }
 
@@ -344,13 +325,13 @@ public class ControlThread extends Thread {
                     e.printStackTrace();
                 }
             } else {
-                comHandler.reply(550);
+                comHandler.reply(Reply.FILE_NOT_FOUND);
             }
         }
     }
 
     private void quit() {
-        comHandler.reply(221);
+        comHandler.reply(Reply.CLOSING);
 
         try {
             controlInput.close();
