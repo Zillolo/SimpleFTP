@@ -6,6 +6,7 @@ package net.tfobz.tele.eggale.ftp;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -97,7 +98,7 @@ public class DataHandler {
                                         new InputStreamReader(client
                                                         .getInputStream()));
 
-                        // FIX: Direct writing is slow. Replace with some kind
+                        // TODO: Direct writing is slow. Replace with some kind
                         // of buffering.
                         try {
                             int data = input.read();
@@ -105,8 +106,10 @@ public class DataHandler {
                                 output.write(data);
                                 data = input.read();
                             }
+                            comHandler.reply(Reply.FILE_ACTION_COMPLETE);
                         } catch (ConnectionResetException e) {
                             // Do nothing. Probably means EOF.
+                            client = null;
                         }
 
                         input.close();
@@ -115,12 +118,16 @@ public class DataHandler {
                     case IMAGE: {
                         BufferedInputStream input = new BufferedInputStream(
                                         client.getInputStream());
-
-                        int b = input.read();
-                        while (b != -1) {
-                            output.write(b);
-                            b = input.read();
+                        ByteArrayOutputStream bOutput = new ByteArrayOutputStream();
+                        byte[] buffer = new byte[4096];
+                        int i = 0;
+                        while ((i = input.read(buffer)) != -1) {
+                            bOutput.write(buffer, 0, i);
                         }
+                        comHandler.reply(Reply.FILE_ACTION_COMPLETE);
+                        byte result[] = bOutput.toByteArray();
+
+                        output.write(result);
                         input.close();
                         break;
                     }
@@ -129,7 +136,6 @@ public class DataHandler {
 
                 }
 
-                comHandler.reply(Reply.FILE_ACTION_COMPLETE);
                 output.close();
             }
         }
@@ -183,11 +189,43 @@ public class DataHandler {
     public void listFiles(File folder) throws IOException {
         if (folder != null) {
             if (isOpen() == true) {
+                BufferedReader input = null;
                 PrintWriter output = new PrintWriter(client.getOutputStream());
 
                 comHandler.reply(Reply.FILE_ACTION_OK);
-                for (File file : folder.listFiles()) {
-                    output.print(file.getName() + "\r\n");
+
+                // CAUTION: Runtime.exec() isch dr teifl.
+                Process p = Runtime.getRuntime().exec(
+                                "/bin/ls -ls1 " + folder.getAbsolutePath());
+                System.out.println(folder.getAbsolutePath());
+                try {
+                    p.waitFor();
+
+                    input = new BufferedReader(new InputStreamReader(
+                                    p.getInputStream()));
+
+                    while (input.ready() == false)
+                        ;
+
+                    // Skip first line. ls outputs total number of files here.
+                    input.readLine();
+                    String data = input.readLine();
+                    while (data != null) {
+                        // Remove leading whitespace cause it breaks the output.
+                        data = data.trim();
+                        // Remove first part of data. I don't currently know
+                        // what it does and it breaks the output.
+                        data = data.substring(data.indexOf(' '));
+                        output.write(data + "\r\n");
+                        data = input.readLine();
+                    }
+                    input.close();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                } finally {
+                    if (input != null) {
+                        input.close();
+                    }
                 }
 
                 output.close();
@@ -217,20 +255,6 @@ public class DataHandler {
             comHandler.reply(Reply.COMMAND_OK);
         }
     }
-
-    // private Socket selectClient() throws IOException {
-    // Socket socket = null;
-    //
-    // if (isOpen() == true) {
-    // if (isPassiveMode == true) {
-    // socket = passiveConnection.accept();
-    // } else {
-    // socket = activeConnection;
-    // }
-    // }
-    //
-    // return socket;
-    // }
 
     public void closeConnection() throws IOException {
         if (isOpen() == true) {

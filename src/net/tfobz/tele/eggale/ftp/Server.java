@@ -56,7 +56,7 @@ public class Server {
                     Thread thread = iterator.next();
                     if (thread.isAlive() == false) {
                         iterator.remove();
-                        System.out.println("Thread " + thread.getId()
+                        System.out.println("[INFO] Thread " + thread.getId()
                                         + " has been removed from the pool.");
                     }
                 }
@@ -64,13 +64,13 @@ public class Server {
                 if (threadPool.size() < MAX_THREADS) {
                     ControlThread thread = new ControlThread(client);
                     threadPool.add(thread);
-                    System.out.println("Thread " + thread.getId()
+                    System.out.println("[INFO] Thread " + thread.getId()
                                     + " has been added to the pool.");
 
                     thread.start();
                 } else {
                     client.close();
-                    System.out.println("Connection refused. Thread pool full.");
+                    System.out.println("[CAUTION] Connection refused. Thread pool full.");
                 }
             } catch (IOException e) {
                 System.err.println("[ERROR] Communication with Socket failed.");

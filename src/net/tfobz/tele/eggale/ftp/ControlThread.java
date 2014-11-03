@@ -1,9 +1,7 @@
 package net.tfobz.tele.eggale.ftp;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.net.Socket;
 
 import net.tfobz.tele.eggale.ftp.state.ComState;
@@ -20,16 +18,6 @@ public class ControlThread extends Thread {
      * The Control Connection to the Client the Thread is currently handling.
      */
     private Socket controlConnection;
-
-    /**
-     * The InputStream of the Control Connection.
-     */
-    private BufferedReader controlInput;
-
-    /**
-     * The OutputStream of the Control Connection.
-     */
-    private PrintWriter controlOutput;
 
     /**
      * The host of the Data Connection.
@@ -110,6 +98,10 @@ public class ControlThread extends Thread {
                             }
                         }
                         break;
+                    case QUIT: {
+                        quit();
+                        break;
+                    }
                     case ERROR:
                     default:
                         userOk = false;
@@ -170,11 +162,10 @@ public class ControlThread extends Thread {
                 System.err.println("[ERROR] Thread "
                                 + this.getId()
                                 + " has problem communication with socket. Aborted.");
-            } finally {
                 quit();
             }
         }
-        System.out.println("[INFO] Thread" + this.getId() + " has halted.");
+        System.out.println("[INFO] Thread " + this.getId() + " has halted.");
     }
 
     private void doNoop() {
@@ -360,8 +351,6 @@ public class ControlThread extends Thread {
         comHandler.reply(Reply.CLOSING);
 
         try {
-            controlInput.close();
-            controlOutput.close();
             controlConnection.close();
         } catch (IOException e) {
             // CAUTION: Cant recover.
