@@ -8,7 +8,6 @@ import java.net.Socket;
 
 import net.tfobz.tele.eggale.ftp.state.ComState;
 import net.tfobz.tele.eggale.ftp.state.Mode;
-import net.tfobz.tele.eggale.ftp.state.Structure;
 import net.tfobz.tele.eggale.ftp.state.Type;
 
 /**
@@ -42,8 +41,14 @@ public class ControlThread extends Thread {
      */
     private int dataPort = Server.CPORT + 1;
 
+    /**
+     * The handler of the data connection of this client.
+     */
     private DataHandler dataHandler;
 
+    /**
+     * The Protocol Handler of this thread.
+     */
     private ProtocolInterpreter comHandler;
 
     /**
@@ -66,7 +71,6 @@ public class ControlThread extends Thread {
 
     public void run() {
         boolean userOk = false;
-
         while (Thread.currentThread().isInterrupted() == false) {
             try {
                 Command command = null;
@@ -163,13 +167,14 @@ public class ControlThread extends Thread {
                     break;
                 }
             } catch (IOException e) {
-                // TODO: Handle exception.
+                System.err.println("[ERROR] Thread "
+                                + this.getId()
+                                + " has problem communication with socket. Aborted.");
+            } finally {
                 quit();
-                e.printStackTrace();
             }
         }
-
-        System.err.println("Exiting thread.");
+        System.out.println("[INFO] Thread" + this.getId() + " has halted.");
     }
 
     private void doNoop() {
@@ -238,15 +243,6 @@ public class ControlThread extends Thread {
         switch (argument.charAt(0)) {
         case 'A':
             dataHandler.setType(Type.ASCII);
-            // if (argument.length() > 2) {
-            // switch (argument.charAt(2)) {
-            // case 'N':
-            // format = Format.NONPRINT;
-            // break;
-            // default:
-            // format = Format.NONPRINT;
-            // }
-            // }
             comHandler.reply(Reply.COMMAND_OK);
             break;
         case 'I':
@@ -263,14 +259,20 @@ public class ControlThread extends Thread {
 
         if (directory.isEmpty() == false) {
             if (directory.equals("..")) {
-                file = new File(dataHandler.getWorkingDirectory())
-                                .getParentFile();
+                // If we are at "/" and the user tries to go up by calling ".."
+                // or CDUP, we do nothing.
+                if (dataHandler.getWorkingDirectory().equals("/") == true) {
+                    file = new File(dataHandler.getWorkingDirectory());
+                } else {
+                    file = new File(dataHandler.getWorkingDirectory())
+                                    .getParentFile();
+                }
             }
             dataHandler.changeDirectory(file);
         }
     }
 
-    private void listFiles(String folder) throws IOException {
+    private void listFiles(String folder) {
         File file = null;
         if (folder.isEmpty() == false) {
             if (folder.startsWith("/") == true) {
@@ -282,13 +284,24 @@ public class ControlThread extends Thread {
                                 + folder);
             }
         } else {
+            // If we have no argument, we take the current working directory as
+            // argument.
             file = new File(dataHandler.getWorkingDirectory());
         }
 
         if (file.exists()) {
-            dataHandler.openConnection(dataPort, dataHost);
-            dataHandler.listFiles(file);
-            dataHandler.closeConnection();
+            try {
+                dataHandler.openConnection(dataPort, dataHost);
+                dataHandler.listFiles(file);
+                dataHandler.closeConnection();
+            } catch (IllegalStateException e) {
+                // Continue as usual.
+                // CAUTION: Is this correct behavior?
+            } catch (IOException e) {
+                System.err.println("[ERROR] Thread "
+                                + this.getId()
+                                + " has encountered a problem when listing files.");
+            }
         } else {
             comHandler.reply(Reply.FILE_NOT_FOUND);
         }
@@ -298,7 +311,7 @@ public class ControlThread extends Thread {
         comHandler.reply(257, dataHandler.getWorkingDirectory());
     }
 
-    private void storeFile(String name) throws IOException {
+    private void storeFile(String name) {
         File file = null;
         if (name.startsWith("/") == true) {
             // Path is absolute.
@@ -308,9 +321,17 @@ public class ControlThread extends Thread {
             file = new File(dataHandler.getWorkingDirectory() + "/" + name);
         }
 
-        dataHandler.openConnection(dataPort, dataHost);
-        dataHandler.store(file);
-        dataHandler.closeConnection();
+        try {
+            dataHandler.openConnection(dataPort, dataHost);
+            dataHandler.store(file);
+            dataHandler.closeConnection();
+        } catch (IllegalStateException e) {
+            // Connection is already open. Continue as usual.
+            // CAUTION: Is this correct behavior?
+        } catch (IOException e) {
+            System.err.println("[ERROR] Thread " + this.getId()
+                            + " has encountered a problem when storing a file.");
+        }
     }
 
     private void retrieveFile(String file) {
@@ -321,8 +342,13 @@ public class ControlThread extends Thread {
                     dataHandler.openConnection(dataPort, dataHost);
                     dataHandler.retrieve(f);
                     dataHandler.closeConnection();
-                } catch (IllegalStateException | IOException e) {
-                    e.printStackTrace();
+                } catch (IllegalStateException e) {
+                    // Continue as usual.
+                    // CAUTION: Is this correct behavior?
+                } catch (IOException e) {
+                    System.err.println("[ERROR] Thread "
+                                    + this.getId()
+                                    + " has encountered a problem when retrieving a file.");
                 }
             } else {
                 comHandler.reply(Reply.FILE_NOT_FOUND);
@@ -338,10 +364,12 @@ public class ControlThread extends Thread {
             controlOutput.close();
             controlConnection.close();
         } catch (IOException e) {
-            // TODO: Wtf?
-            e.printStackTrace();
+            // CAUTION: Cant recover.
+            System.err.println("[ERROR] Thread " + this.getId()
+                            + " has encountered an error when quiting.");
+        } finally {
+            // Definitely stop execution and mark for cleanup.
+            this.interrupt();
         }
-
-        this.interrupt();
     }
 }

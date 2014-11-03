@@ -31,14 +31,9 @@ public class DataHandler {
     private boolean isPassiveMode = false;
 
     /**
-     * A Socket which is used for the active transfer.
+     * The data socket of the client.
      */
-    private Socket activeConnection = null;
-
-    /**
-     * A ServerSocket which is used for the passive transfer.
-     */
-    private ServerSocket passiveConnection = null;
+    private Socket client = null;
 
     /**
      * The transmission mode.
@@ -73,9 +68,11 @@ public class DataHandler {
                     IllegalStateException {
         if (isOpen() == false) {
             if (isPassiveMode == true) {
-                passiveConnection = new ServerSocket(port);
+                ServerSocket server = new ServerSocket(port);
+                client = server.accept();
+                server.close();
             } else {
-                activeConnection = new Socket(host, port);
+                client = new Socket(host, port);
             }
         } else {
             throw new IllegalStateException("Connection already opened.");
@@ -83,26 +80,12 @@ public class DataHandler {
     }
 
     public boolean isOpen() {
-        boolean ret = false;
-
-        if (isPassiveMode == true) {
-            if (passiveConnection != null) {
-                ret = true;
-            }
-        } else {
-            if (activeConnection != null) {
-                ret = true;
-            }
-        }
-
-        return ret;
+        return (client != null);
     }
 
     public void store(File file) throws IOException {
-        Socket client = null;
         if (file != null) {
-            client = selectClient();
-            if (client != null) {
+            if (isOpen() == true) {
                 comHandler.reply(Reply.FILE_ACTION_OK);
 
                 FileOutputStream output = new FileOutputStream(file);
@@ -148,16 +131,13 @@ public class DataHandler {
 
                 comHandler.reply(Reply.FILE_ACTION_COMPLETE);
                 output.close();
-                client.close();
             }
         }
     }
 
     public void retrieve(File file) throws IOException {
-        Socket client = null;
         if (file != null) {
-            client = selectClient();
-            if (client != null) {
+            if (isOpen() == true) {
                 comHandler.reply(Reply.FILE_ACTION_OK);
 
                 FileInputStream input = new FileInputStream(file);
@@ -173,20 +153,11 @@ public class DataHandler {
                             output.print((char) data);
                             data = input.read();
                         }
+
                         output.close();
                         break;
                     }
                     case IMAGE: {
-                        // OutputStreamWriter out = new OutputStreamWriter(
-                        // client.getOutputStream(), "UTF-8");
-                        // byte[] b = new byte[(int) file.length()];
-                        //
-                        // input.read(b);
-                        // for (int i = 0; i < file.length(); i++) {
-                        // System.out.println((char) b[i]);
-                        // out.write(b[i]);
-                        // }
-                        // out.close();
                         BufferedOutputStream output = new BufferedOutputStream(
                                         client.getOutputStream());
 
@@ -195,6 +166,7 @@ public class DataHandler {
                             output.write(data);
                             data = input.read();
                         }
+
                         output.close();
                         break;
                     }
@@ -204,25 +176,22 @@ public class DataHandler {
 
                 comHandler.reply(Reply.FILE_ACTION_COMPLETE);
                 input.close();
-                client.close();
             }
         }
     }
 
     public void listFiles(File folder) throws IOException {
-        Socket client = null;
         if (folder != null) {
-            client = selectClient();
-            if (client != null) {
+            if (isOpen() == true) {
                 PrintWriter output = new PrintWriter(client.getOutputStream());
 
                 comHandler.reply(Reply.FILE_ACTION_OK);
                 for (File file : folder.listFiles()) {
                     output.print(file.getName() + "\r\n");
                 }
+
                 output.close();
                 comHandler.reply(Reply.FILE_ACTION_COMPLETE);
-                client.close();
             }
         }
     }
@@ -249,29 +218,24 @@ public class DataHandler {
         }
     }
 
-    private Socket selectClient() throws IOException {
-        Socket socket = null;
-
-        if (isOpen() == true) {
-            if (isPassiveMode == true) {
-                socket = passiveConnection.accept();
-            } else {
-                socket = activeConnection;
-            }
-        }
-
-        return socket;
-    }
+    // private Socket selectClient() throws IOException {
+    // Socket socket = null;
+    //
+    // if (isOpen() == true) {
+    // if (isPassiveMode == true) {
+    // socket = passiveConnection.accept();
+    // } else {
+    // socket = activeConnection;
+    // }
+    // }
+    //
+    // return socket;
+    // }
 
     public void closeConnection() throws IOException {
         if (isOpen() == true) {
-            if (isPassiveMode == true) {
-                passiveConnection.close();
-                passiveConnection = null;
-            } else {
-                activeConnection.close();
-                activeConnection = null;
-            }
+            client.close();
+            client = null;
         }
     }
 

@@ -27,10 +27,6 @@ public enum Reply {
     LOGIN_INCORRECT(530),
     FILE_NOT_FOUND(550);
     
-    private int code;
-    
     private Reply(int code) {
-        this.code = code;
-    }
-                    
+    }                    
 }
