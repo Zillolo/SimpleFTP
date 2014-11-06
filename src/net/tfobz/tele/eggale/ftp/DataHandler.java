@@ -6,6 +6,7 @@ package net.tfobz.tele.eggale.ftp;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -18,7 +19,6 @@ import java.net.Socket;
 
 import net.tfobz.tele.eggale.ftp.state.Mode;
 import net.tfobz.tele.eggale.ftp.state.Type;
-import sun.net.ConnectionResetException;
 
 /**
  * @author alex
@@ -93,28 +93,7 @@ public class DataHandler {
                 switch (mode) {
                 case STREAM:
                     switch (type) {
-                    case ASCII: {
-                        BufferedReader input = new BufferedReader(
-                                        new InputStreamReader(client
-                                                        .getInputStream()));
-
-                        // TODO: Direct writing is slow. Replace with some kind
-                        // of buffering.
-                        try {
-                            int data = input.read();
-                            while (data != -1) {
-                                output.write(data);
-                                data = input.read();
-                            }
-                            comHandler.reply(Reply.FILE_ACTION_COMPLETE);
-                        } catch (ConnectionResetException e) {
-                            // Do nothing. Probably means EOF.
-                            client = null;
-                        }
-
-                        input.close();
-                        break;
-                    }
+                    case ASCII:
                     case IMAGE: {
                         BufferedInputStream input = new BufferedInputStream(
                                         client.getInputStream());
@@ -150,38 +129,23 @@ public class DataHandler {
                 switch (mode) {
                 case STREAM:
                     switch (type) {
-                    case ASCII: {
-                        PrintWriter output = new PrintWriter(
-                                        client.getOutputStream());
-
-                        int data = input.read();
-                        while (data != -1) {
-                            output.print((char) data);
-                            data = input.read();
-                        }
-
-                        output.close();
-                        break;
-                    }
+                    case ASCII:
                     case IMAGE: {
+                        byte[] buffer = new byte[(int) file.length()];
                         BufferedOutputStream output = new BufferedOutputStream(
                                         client.getOutputStream());
 
-                        int data = input.read();
-                        while (data != -1) {
-                            output.write(data);
-                            data = input.read();
-                        }
+                        input.read(buffer);
+                        output.write(buffer);
 
                         output.close();
                         break;
                     }
                     }
-                    break;
-                }
 
-                comHandler.reply(Reply.FILE_ACTION_COMPLETE);
-                input.close();
+                    comHandler.reply(Reply.FILE_ACTION_COMPLETE);
+                    input.close();
+                }
             }
         }
     }
@@ -197,13 +161,13 @@ public class DataHandler {
                 // CAUTION: Runtime.exec() isch dr teifl.
                 Process p = Runtime.getRuntime().exec(
                                 "/bin/ls -ls1 " + folder.getAbsolutePath());
-                System.out.println(folder.getAbsolutePath());
                 try {
                     p.waitFor();
 
                     input = new BufferedReader(new InputStreamReader(
                                     p.getInputStream()));
 
+                    // CAUTION: Potential lock.
                     while (input.ready() == false)
                         ;
 
@@ -250,9 +214,6 @@ public class DataHandler {
 
         if (flag == true) {
             comHandler.reply(Reply.PASSIVE_MODE);
-        } else {
-            // CAUTION: Is this the correct reply?
-            comHandler.reply(Reply.COMMAND_OK);
         }
     }
 
